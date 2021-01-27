@@ -19,6 +19,8 @@ class RoverDriveSystem
     kTranslation = 'T'
   };
 
+  // MAKE CONST STRUCT INSTEAD OF DELCARING WITHIN FUNCTION
+
   /// Mission controls possible input values
   struct MissionControlData
   {
@@ -26,7 +28,7 @@ class RoverDriveSystem
     char drive_mode;
     float rotation_angle;
     float speed;
-    char * http_GET_param;
+    char * GET_request;
   };
 
   RoverDriveSystem(sjsu::drive::Wheel & left_wheel,
@@ -56,14 +58,8 @@ class RoverDriveSystem
   /// @return returns true if connection is established from mission control
   bool GetMissionControlData()
   {
-    mission_control_data_.http_GET_param =
-        "?is_operational=%d&drive_mode=%c&left_wheel_speed=%f&right_wheel_"
-        "speed=%f&back_wheel_speed=%f",
-    mission_control_data_.is_operational, static_cast<char>(current_mode_),
-    left_wheel_.GetSpeed(), right_wheel_.GetSpeed(), back_wheel_.GetSpeed();
-    // TODO: GET /drive?key=value&key=value... JSON value. Refer to
-    // GetRoverData() to find GET paramater
-    if (true)  // change 'true' to something for localhost connection found
+    // TODO: GET /drive?key=value&key=value... JSON value.
+    if (SendGETRequest())
     {
       char response[] = {};
       ParseMissionControlData(response);
@@ -118,15 +114,23 @@ class RoverDriveSystem
   };
 
   /// Updates Mission Control /drive/status endpoint with rover's current status
-  void UpdateMissionControlData()
+  bool SendGETRequest()
   {
     if (GetRoverData())
     {
-      // POST, http://localhost:3000/drive/status, JSON.stringify(rover_data_)
+      mission_control_data_.GET_request =
+          "192.168.1.153:5000/"
+          "?is_operational=%d&drive_mode=%c&left_wheel_speed=%f&right_wheel_"
+          "speed=%f&back_wheel_speed=%f",
+      mission_control_data_.is_operational, static_cast<char>(current_mode_),
+      left_wheel_.GetSpeed(), right_wheel_.GetSpeed(), back_wheel_.GetSpeed();
+      sjsu::LogInfo("GET request: %s", mission_control_data_.GET_request);
+      return true;
     }
     else
     {
       sjsu::LogError("Unable to retrieve wheel data!");
+      return false;
     }
   };
 
@@ -134,15 +138,22 @@ class RoverDriveSystem
   /// @return true if rover is able to retrieve data from all the wheels
   bool GetRoverData()
   {
-    sjsu::LogInfo("is_operational: %d", mission_control_data_.is_operational);
-    sjsu::LogInfo("drive_mode: %c", static_cast<char>(current_mode_));
-    sjsu::LogInfo("left wheel speed: %f", left_wheel_.GetSpeed());
-    sjsu::LogInfo("left wheel position: %f", left_wheel_.GetPosition());
-    sjsu::LogInfo("right wheel speed: %f", right_wheel_.GetSpeed());
-    sjsu::LogInfo("right wheel position: %f", right_wheel_.GetPosition());
-    sjsu::LogInfo("back wheel speed: %f", back_wheel_.GetSpeed());
-    sjsu::LogInfo("back wheel position: %f", back_wheel_.GetPosition());
-    return true;
+    try
+    {
+      sjsu::LogInfo("is_operational: %d", mission_control_data_.is_operational);
+      sjsu::LogInfo("drive_mode: %c", static_cast<char>(current_mode_));
+      sjsu::LogInfo("left wheel speed: %f", left_wheel_.GetSpeed());
+      sjsu::LogInfo("left wheel position: %f", left_wheel_.GetPosition());
+      sjsu::LogInfo("right wheel speed: %f", right_wheel_.GetSpeed());
+      sjsu::LogInfo("right wheel position: %f", right_wheel_.GetPosition());
+      sjsu::LogInfo("back wheel speed: %f", back_wheel_.GetSpeed());
+      sjsu::LogInfo("back wheel position: %f", back_wheel_.GetPosition());
+      return true;
+    }
+    catch (const std::exception & e)
+    {
+      return false;
+    }
   };
 
   /// Parses incoming data from mission control to command rover
