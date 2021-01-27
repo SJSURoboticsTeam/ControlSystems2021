@@ -67,7 +67,7 @@ class RoverDriveSystem
     }
     else
     {
-      SetMode();
+      SetWheelSpeed(kZeroSpeed);
       sjsu::LogError("Unable to reach mission control server");
       return false;
     }
