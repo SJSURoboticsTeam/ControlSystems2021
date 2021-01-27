@@ -56,7 +56,7 @@ class RoverDriveSystem
 
   // Handles GET /drive?parameters for rover drive system to mission control
   /// @return returns true if connection is established from mission control
-  bool GetMissionControlData()
+  bool ExchangeMissionControlData()
   {
     // TODO: GET /drive?key=value&key=value... JSON value.
     if (SendGETRequest())
@@ -118,6 +118,7 @@ class RoverDriveSystem
   {
     if (GetRoverData())
     {
+      // TODO: Add state of charge parameter
       mission_control_data_.GET_request =
           "192.168.1.153:5000/"
           "?is_operational=%d&drive_mode=%c&left_wheel_speed=%f&right_wheel_"
