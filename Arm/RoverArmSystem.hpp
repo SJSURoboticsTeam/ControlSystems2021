@@ -62,6 +62,16 @@ class RoverArmSystem
   /// Returns True if successful.
   bool MoveArm()
   {
+    Rotunda.SetPosition(rotunda_pos);
+    Shoulder.SetPosition(shoulder_pos);
+    Elbow.SetPosition(elbow_pos);
+    Wrist.SetPosition(wrist_pitch_pos, wrist_roll_pos);
+    return true;
+  }
+
+  // Controls each of the five fingers and the wrist
+  bool MoveHand()
+  {
     return true;
   }
 };
