@@ -9,6 +9,7 @@ namespace sjsu::arm
 class Joint
 {
  private:
+  float gearRatio = 6;
   // The minimum allowable angle the joint is able to turn to in normal
   // operation.
   units::angle::degree_t minimum_angle = 0_deg;
@@ -52,18 +53,39 @@ class Joint
     mpu.Initialize();
   }
 
+  // Get the position of the motor from its encoder.
+  units::angle::degree_t encoderPosition()
+  {
+    return static_cast<units::angle::degree_t>(motor.GetFeedback().encoder_position / 360.0f / 6);
+  }
+
   /// Move the motor to the (calibrated) angle desired.
   void SetPosition(units::angle::degree_t angle)
   {
-    units::angle::degree_t calibrated_angle = angle - zero_offset_angle;
-    calibrated_angle                        = units::math::min(
-        units::math::max(calibrated_angle, minimum_angle), maximum_angle);
-    sjsu::LogInfo("%f", calibrated_angle.to<double>());
+    angle =
+        units::math::min(units::math::max(angle, minimum_angle), maximum_angle);
+    units::angle::degree_t calibrated_angle = angle + zero_offset_angle;
     motor.SetAngle(calibrated_angle);
+  }
+
+  // Moves the joint to its park angle.
+  void park()
+  {
+    SetPosition(rest_angle);
   }
 
   /// Sets the zero_offset_angle value that the motor uses to know its true '0'
   /// position. Called by RoverArmSystem::Home
+  /// It is required to pass the pitch of the lower arm-segment to properly
+  /// callibrate. (Rotunda->Elbow->Shoulder)
+  units::angle::degree_t home(units::angle::degree_t previous_pitch)
+  {
+    // TODO: Rewrite these to take several samples of accelerometer data.
+    units::angle::degree_t jointPitch = pitch();
+    zero_offset_angle = jointPitch - encoderPosition() - previous_pitch;
+    return jointPitch;
+  }
+
   void SetZeroOffset(units::angle::degree_t offset)
   {
     zero_offset_angle = offset;
@@ -73,6 +95,14 @@ class Joint
   sjsu::Accelerometer::Acceleration_t GetAccelerometerData()
   {
     return mpu.Read();
+  }
+
+  units::angle::degree_t pitch()
+  {
+    sjsu::Accelerometer::Acceleration_t acceleration = mpu.Read();
+    return units::math::atan2(
+        -acceleration.x / 1_SG,
+        units::math::hypot(acceleration.y / 1_SG, acceleration.z / 1_SG));
   }
 };
 }  // namespace sjsu::arm

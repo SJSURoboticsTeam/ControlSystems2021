@@ -36,8 +36,27 @@ class RoverArmSystem
 
   /// Homes all of the joints on the arm, so that the motors know their actual
   /// position. Returns true if successful.
-  bool Home()
+  bool Home(bool park = false)
   {
+    // Home Shoulder and Elbow
+    Elbow.home(Shoulder.home(Rotunda.pitch()));
+    // home wrist
+
+    if (park)
+    {  // It may be benifical to put the arm in its compact park postion, to
+      // avoid crashing into thing while homing the rotunda.
+      Shoulder.park();
+      Elbow.park();
+      Wrist.park();
+    }
+
+    // home rotunda
+    while (true /*rotunda magno-switch not triggered*/)
+    {
+      // TODO improve search algorithm.
+      Rotunda.SetPosition(Rotunda.encoderPosition() + 1_deg);
+    }
+    Rotunda.SetZeroOffset(Rotunda.encoderPosition());
     return true;
   }
 
@@ -55,6 +74,13 @@ class RoverArmSystem
   /// server. Returns True if successful.
   bool GetData()
   {
+    // TODO: Acctually get the data from the server; Blocked by wifi code not
+    // yet written.
+    rotunda_pos     = 0_deg;
+    shoulder_pos    = 0_deg;
+    elbow_pos       = 0_deg;
+    wrist_pitch_pos = 0_deg;
+    wrist_roll_pos  = 0_deg;
     return true;
   }
 
@@ -62,6 +88,10 @@ class RoverArmSystem
   /// Returns True if successful.
   bool MoveArm()
   {
+    Rotunda.SetPosition(rotunda_pos);
+    Shoulder.SetPosition(shoulder_pos);
+    Elbow.SetPosition(elbow_pos);
+    Wrist.SetPosition(wrist_pitch_pos, wrist_roll_pos);
     return true;
   }
 };

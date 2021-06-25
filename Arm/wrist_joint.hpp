@@ -8,6 +8,7 @@ namespace sjsu::arm
 class WristJoint
 {
  private:
+  float gearRatio = 6;
   // The Minimum and Maximum angles that the wrist pitch is allowed to rotate.
   units::angle::degree_t pitch_minimum_angle = 0_deg;
   units::angle::degree_t pitch_maximum_angle = 180_deg;
@@ -78,21 +79,56 @@ class WristJoint
   void SetPosition(units::angle::degree_t pitch_angle,
                    units::angle::degree_t roll_angle)
   {
+    pitch_angle =
+        units::math::min(units::math::max(pitch_angle, pitch_minimum_angle),
+                         pitch_maximum_angle);
+    roll_angle = units::math::min(
+        units::math::max(roll_angle, roll_minimum_angle), roll_maximum_angle);
+    left_motor.SetAngle(pitch_angle + roll_angle + left_zero_offset_angle);
+    right_motor.SetAngle(pitch_angle - roll_angle + right_zero_offset_angle);
   }
 
   /// Sets the zero_offset_angle value that the motors use to know its true '0'
   /// position. Called by RoverArmSystem::Home
-  void SetZeroOffsets(units::angle::degree_t left_offset,
-                      units::angle::degree_t right_offset)
+  void home(units::angle::degree_t elbow_pitch)
   {
-    left_zero_offset_angle  = left_offset;
-    right_zero_offset_angle = right_offset;
+    units::angle::degree_t pitch = getPitch();
+    // Make sure not Gimbal locked -> move motors pitch if nedded
+    units::angle::degree_t roll = getRoll();
+    // Calculate L & r motor offsets
+    left_zero_offset_angle =
+        static_cast<units::angle::degree_t>(
+            left_motor.GetFeedback().encoder_position / 360.0f / gearRatio) -
+        (pitch - elbow_pitch + roll);
+    right_zero_offset_angle =
+        static_cast<units::angle::degree_t>(
+            left_motor.GetFeedback().encoder_position / 360.0f / gearRatio) -
+        (pitch - elbow_pitch + roll);
+  }
+
+  void park()
+  {
+    SetPosition(pitch_rest_angle, roll_rest_angle);
   }
 
   /// Return the acceleration values for the MPU6050 on the joint.
   sjsu::Accelerometer::Acceleration_t GetAccelerometerData()
   {
     return mpu.Read();
+  }
+
+  units::angle::degree_t getPitch()
+  {
+    sjsu::Accelerometer::Acceleration_t acceleration = mpu.Read();
+    return units::math::atan2(
+        -acceleration.x / 1_SG,
+        units::math::hypot(acceleration.y / 1_SG, acceleration.z / 1_SG));
+  }
+
+  units::angle::degree_t getRoll()
+  {
+    sjsu::Accelerometer::Acceleration_t acceleration = mpu.Read();
+    return units::math::atan2(acceleration.x / 1_SG, acceleration.y / 1_SG);
   }
 };
 }  // namespace sjsu::arm
