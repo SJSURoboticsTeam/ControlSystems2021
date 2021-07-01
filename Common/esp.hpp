@@ -1,6 +1,5 @@
 #pragma once
 
-#include <string>
 #include <cstdint>
 #include <string_view>
 
@@ -28,61 +27,21 @@ class Esp
     ConnectToWiFi();
   };
 
-  /// Verifies that the Wi-Fi module is still connected to the network
-  /// @return true if the module is still connected to the internet
-  bool isConnectedToWiFi()
-  {
-    if (!wifi_.IsConnected())
-    {
-      sjsu::LogError("Lost connection to %s... Reconnecting...", kSsid);
-      ConnectToWiFi();
-      if (!wifi_.IsConnected())
-      {
-        sjsu::LogError("Unable to reconnect to %s...", kSsid);
-        return false;
-      }
-    }
-    return true;
-  };
-
   /// Sends a GET request to the specified url
-  /// @param endpoint
+  /// @param endpoint i.e. /endpoint?example=parameter
   /// @return the response body data
-  void GET(std::string endpoint)
+  std::string_view GET(std::string endpoint)
   {
     request_ = "GET /" + endpoint + " HTTP/1.1\r\nHost: " + url_.data() +
                "\r\nContent-Type: application/json\r\n\r\n";
-
-    // sjsu::LogInfo("Request Header: %s", request_.data());
-    sjsu::LogInfo("Connecting to server (%s)...", url_.data());
-
-    socket_.Connect(sjsu::InternetSocket::Protocol::kTCP, url_, kPort,
-                    kDefaultTimeout);
-
-    sjsu::LogInfo("Writing to server (%s)...", url_.data());
-
-    std::span write_payload(reinterpret_cast<const uint8_t *>(request_.data()),
-                            request_.size());
-
-    socket_.Write(write_payload, kDefaultTimeout);
-
-    sjsu::LogInfo("Reading back response from server (%s)...", url_.data());
-
-    std::array<uint8_t, 1024 * 2> response;
-    size_t read_back = socket_.Read(response, kDefaultTimeout);
-
-    sjsu::LogInfo("Printing Server Response:");
-    printf("%.*s\n", read_back, response.data());
-    puts("================================================");
-
-    // https://stackoverflow.com/questions/17746688/convert-unsigned-char-to-stdstring
-    // std::string_view test(reinterpret_cast<char *>(response.data()));
-    std::string_view test(reinterpret_cast<char *>(response.data()), read_back);
-
-    test      = test.substr(test.find("\r\n\r\n"));
-    auto body = test.substr(test.find("{"));
-
+    ConnectToServer();
+    WriteRequest();
+    ReadResponse();
+    response_ = response_.substr(response_.find("\r\n\r\n"));
+    auto body = response_.substr(response_.find("{"));
     puts(body.data());
+    return body;
+    // return GetJsonBodyFromResponse();
   };
 
  private:
@@ -97,15 +56,57 @@ class Esp
         break;
       }
       sjsu::LogError("Failed to connect to %s... Retrying...", kSsid);
-      wifi_.DisconnectFromAccessPoint();
     }
     sjsu::LogInfo("Connected!");
   }
+
+  void ConnectToServer()
+  {
+    sjsu::LogInfo("Connecting to %s...", url_.data());
+    socket_.Connect(sjsu::InternetSocket::Protocol::kTCP, url_, kPort,
+                    kDefaultTimeout);
+  }
+
+  void WriteRequest()
+  {
+    sjsu::LogInfo("Writing request to server...");
+    std::span write_payload(reinterpret_cast<const uint8_t *>(request_.data()),
+                            request_.size());
+    socket_.Write(write_payload, kDefaultTimeout);
+  }
+
+  void ReadResponse()
+  {
+    sjsu::LogInfo("Reading back response from server...");
+    std::array<uint8_t, 1024 * 2> raw;
+    size_t res_size = socket_.Read(raw, kDefaultTimeout);
+    std::string_view response_(reinterpret_cast<char *>(raw.data()), res_size);
+  }
+
+  /// Parses the GET response
+  /// @return the response body
+  std::string_view GetJsonBodyFromResponse()
+  {
+    response_ = response_.substr(response_.find("\r\n\r\n"));
+    auto body = response_.substr(response_.find("{"));
+    return body;
+  }
+
+  /// Checks Wi-Fi connection and will attempt to reconnect
+  void isConnectedToWiFi()
+  {
+    if (!wifi_.IsConnected())  // TODO: Not yet implemented
+    {
+      sjsu::LogError("Lost connection to %s... Reconnecting...", kSsid);
+      ConnectToWiFi();
+    }
+  };
 
   sjsu::Esp8266 esp_;
   sjsu::WiFi & wifi_;
   sjsu::InternetSocket & socket_;
   std::string_view request_;
+  std::string_view response_;
   std::string_view url_  = "jsonplaceholder.typicode.com";
   const uint16_t kPort   = 80;
   const char * kSsid     = "GarzaLine";
